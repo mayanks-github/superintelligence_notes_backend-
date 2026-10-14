@@ -8,6 +8,7 @@ Rails.application.routes.draw do
       get "auth/me", to: "auth#me"
 
       resources :notes
+      resources :videos, only: %i[index show]
     end
   end
 end
