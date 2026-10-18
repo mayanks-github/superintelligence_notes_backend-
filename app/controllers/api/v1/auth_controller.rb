@@ -36,17 +36,7 @@ module Api
       end
 
       def me
-        render json: { user: user_json(current_user) }
-      end
-
-      private
-
-      def user_json(user)
-        {
-          id: user.id,
-          name: user.name,
-          email: user.email
-        }
+        render json: { user: Payloads.user(current_user) }
       end
     end
   end
