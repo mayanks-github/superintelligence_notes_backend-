@@ -15,16 +15,24 @@ module Api
 
       def create
         note = docs.create(note_attributes)
+        Captures::Sync.call(current_user, note, origin: "extension")
         render json: { note: note }, status: :created
       end
 
       def update
         note = docs.update(params[:id], note_attributes)
+        Captures::Sync.call(
+          current_user,
+          note,
+          origin: "extension",
+          prefer_title: params.dig(:note, :title)
+        )
         render json: { note: note }
       end
 
       def destroy
         docs.destroy(params[:id])
+        Captures::Sync.destroy_for(current_user, params[:id])
         head :no_content
       end
 
@@ -36,6 +44,7 @@ module Api
 
       def note_attributes
         permitted = params.require(:note).permit(
+          :title,
           :video_id,
           :video_title,
           :video_url,

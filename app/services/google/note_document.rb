@@ -34,6 +34,7 @@ module Google
       end
 
       payload = {
+        title: note[:title],
         video_id: note[:video_id],
         video_title: note[:video_title],
         video_url: note[:video_url],

@@ -1,6 +1,7 @@
 module Google
   class DocsStore
-    SOURCES = %w[gemini-youtube manual gemini-api].freeze
+    SOURCES = %w[gemini-youtube manual gemini-api youtube gemini chatgpt grok claude].freeze
+    LIBRARY_VIDEO_ID = "library"
     DRIVE = "https://www.googleapis.com/drive/v3/files"
     FILE_FIELDS = "id,name,description,createdTime,modifiedTime,webViewLink,appProperties"
 
@@ -30,9 +31,9 @@ module Google
             video_id: video_id,
             video_title: primary[:video_title].presence || video_id,
             video_url: primary[:video_url] || (
-              video_id == "unknown" ? nil : "https://www.youtube.com/watch?v=#{video_id}"
+              library_video?(video_id) || video_id == "unknown" ? nil : "https://www.youtube.com/watch?v=#{video_id}"
             ),
-            thumbnail_url: video_id == "unknown" ? nil : "https://i.ytimg.com/vi/#{video_id}/hqdefault.jpg",
+            thumbnail_url: library_video?(video_id) || video_id == "unknown" ? nil : "https://i.ytimg.com/vi/#{video_id}/hqdefault.jpg",
             notes_count: sorted.size,
             notes: sorted.map { |note| note.slice(:id, :title, :source, :captured_at, :created_at, :web_view_link) },
             latest_captured_at: sorted.first[:captured_at] || sorted.first[:created_at]
@@ -159,6 +160,9 @@ module Google
     end
 
     def note_file_name(note)
+      custom = note[:title].to_s.gsub(/[\r\n]+/, " ").strip
+      return custom.slice(0, 200) if custom.present?
+
       time = parse_time(note[:captured_at])
       stamp = time.strftime("%Y-%m-%d %H.%M")
       source = note[:source].to_s.presence || "note"
@@ -271,21 +275,36 @@ module Google
       source = attributes[:source].presence || "gemini-youtube"
       sections = attributes[:sections] || []
 
-      raise Error, "video_id is required" if video_id.blank?
       raise Error, "summary_text is required" if summary.blank?
       raise Error, "invalid source" unless SOURCES.include?(source)
       raise Error, "sections must be an array" unless sections.is_a?(Array)
 
+      if video_id.blank?
+        video_id = LIBRARY_VIDEO_ID
+        video_url = attributes[:video_url].presence
+        video_title = attributes[:video_title].presence || "Library"
+      else
+        raise Error, "Invalid video_id" unless video_id.match?(/\A[\w-]{1,64}\z/)
+
+        video_url = attributes[:video_url].presence || "https://www.youtube.com/watch?v=#{video_id}"
+        video_title = attributes[:video_title].presence || video_id
+      end
+
       captured_at = attributes[:captured_at].presence || Time.current.iso8601
       {
+        title: attributes[:title].presence,
         video_id: video_id,
-        video_title: attributes[:video_title].presence || video_id,
-        video_url: attributes[:video_url].presence || "https://www.youtube.com/watch?v=#{video_id}",
+        video_title: video_title,
+        video_url: video_url,
         summary_text: summary,
         source: source,
         sections: sections.map { |section| section.to_h.symbolize_keys },
         captured_at: captured_at.respond_to?(:iso8601) ? captured_at.iso8601 : captured_at.to_s
       }
+    end
+
+    def library_video?(video_id)
+      video_id.to_s == LIBRARY_VIDEO_ID
     end
 
     def summary_json(file)
@@ -296,8 +315,8 @@ module Google
         title: file["name"],
         video_id: video_id,
         video_title: props["video_title"].presence || file["name"],
-        video_url: props["video_url"].presence || (
-          video_id.present? ? "https://www.youtube.com/watch?v=#{video_id}" : nil
+        video_url: library_video?(video_id) ? nil : (
+          props["video_url"].presence || (video_id.present? ? "https://www.youtube.com/watch?v=#{video_id}" : nil)
         ),
         summary_text: file["description"].to_s,
         source: props["source"],
