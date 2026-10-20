@@ -11,7 +11,11 @@ Rails.application.routes.draw do
       post "profile/avatar", to: "profiles#upload_avatar"
       delete "profile/avatar", to: "profiles#destroy_avatar"
 
-      resources :notes
+      resources :notes do
+        member do
+          get :download
+        end
+      end
       resources :videos, only: %i[index show]
       resources :sources, only: %i[index]
       resources :captures, only: %i[index create]

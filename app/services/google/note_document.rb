@@ -6,33 +6,42 @@ module Google
     START_MARKER = "<<<SUPERINTELLIGENCE>>>".freeze
     END_MARKER = "<<<END SUPERINTELLIGENCE>>>".freeze
 
-    def self.render(note)
-      lines = [
-        note[:video_title].to_s,
-        "",
-        note[:video_url].to_s,
-        "Source: #{note[:source]}",
-        "Captured: #{note[:captured_at]}",
-        "",
-        "Summary",
-        note[:summary_text].to_s
-      ]
+    def self.readable_text(note)
+      note = note.to_h.symbolize_keys
+      title = note[:title].presence || note[:video_title].presence
+      lines = []
+      lines << title.to_s if title.present?
+      lines << "" if title.present?
+      lines << note[:video_title].to_s if note[:video_title].present? && note[:video_title] != title
+      lines << note[:video_url].to_s if note[:video_url].present?
+      lines << "Source: #{note[:source]}" if note[:source].present?
+      lines << "Captured: #{note[:captured_at]}" if note[:captured_at].present?
+      lines << ""
+      lines << "Summary"
+      lines << note[:summary_text].to_s
 
       sections = Array(note[:sections])
       if sections.any?
         lines << ""
         lines << "Sections"
         sections.each do |section|
-          heading = section[:heading].presence || section["heading"].presence || "Section"
-          timestamp = section[:timestamp].presence || section["timestamp"].presence
+          section = section.to_h.symbolize_keys
+          heading = section[:heading].presence || "Section"
+          timestamp = section[:timestamp].presence
           lines << ""
           lines << [ heading, timestamp ].compact.join(" · ")
-          Array(section[:bullets] || section["bullets"]).each do |bullet|
+          Array(section[:bullets]).each do |bullet|
             lines << "- #{bullet}"
           end
         end
       end
 
+      lines.join("\n").strip + "\n"
+    end
+
+    def self.render(note)
+      note = note.to_h.symbolize_keys
+      sections = Array(note[:sections])
       payload = {
         title: note[:title],
         video_id: note[:video_id],
@@ -46,7 +55,7 @@ module Google
       encoded = Base64.strict_encode64(JSON.generate(payload))
 
       [
-        lines.join("\n"),
+        readable_text(note).rstrip,
         "",
         "App data used by Superintelligence Notes to reopen this note.",
         START_MARKER,

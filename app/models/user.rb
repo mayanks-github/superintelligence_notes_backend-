@@ -25,7 +25,15 @@ class User < ApplicationRecord
     user.email = email
     user.name = profile["name"].presence || email
     user.google_refresh_token = tokens["refresh_token"] if tokens["refresh_token"].present?
-    raise Google::Error, "Google did not grant offline access. Sign in again and allow access." if user.google_refresh_token.blank?
+    begin
+      refresh_missing = user.google_refresh_token.blank?
+    rescue ActiveRecord::Encryption::Errors::Decryption
+      # Tokens were encrypted with a different key (e.g. missing/changed master.key).
+      user.google_refresh_token = tokens["refresh_token"]
+      user.google_access_token = nil
+      refresh_missing = user.google_refresh_token.blank?
+    end
+    raise Google::Error, "Google did not grant offline access. Sign in again and allow access." if refresh_missing
 
     user.google_access_token = tokens["access_token"]
     user.google_token_expires_at = Time.current + tokens.fetch("expires_in", 3600).to_i.seconds

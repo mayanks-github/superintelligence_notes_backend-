@@ -36,6 +36,17 @@ module Api
         head :no_content
       end
 
+      def download
+        note = docs.find(params[:id])
+        export = Notes::Export.call(note, params[:format])
+        send_data(
+          export[:data],
+          filename: export[:filename],
+          type: export[:content_type],
+          disposition: "attachment"
+        )
+      end
+
       private
 
       def docs
